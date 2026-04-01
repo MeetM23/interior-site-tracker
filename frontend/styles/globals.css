@@ -1,0 +1,160 @@
+/* Premium Interior Site Tracker Design System */
+
+/* Color Palette */
+:root {
+  --primary-orange: #C85A17;
+  --primary-maroon: #1C1C1C;
+  --bg-beige: #F8F7F5;
+  --bg-white: #FFFFFF;
+  --text-dark: #222222;
+  --text-muted: #666666;
+  --border-light: rgba(28, 28, 28, 0.1);
+  --success-green: #5B7A61;
+  --warning-yellow: #B58F5E;
+  --danger-red: #944040;
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.07);
+}
+
+/* Global Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  text-shadow: none !important;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-beige);
+  color: var(--text-dark);
+}
+
+body {
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* TYPOGRAPHY MATRIX */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-dark);
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em; /* Added strict tight tracking typical for premium iOS rendering */
+}
+
+h1 {
+  font-size: clamp(32px, 5vw, 36px);
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1.5rem;
+}
+
+h2 {
+  font-size: clamp(24px, 4vw, 28px);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 1.25rem;
+}
+
+h3 {
+  font-size: clamp(18px, 3vw, 20px);
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: 1rem;
+}
+
+p {
+  font-size: clamp(14px, 2vw, 16px);
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+small {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* Remove bold defaults for cleaner look where inherited */
+b, strong {
+  font-weight: 600;
+}
+
+/* Links */
+a {
+  color: var(--primary-orange);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--primary-maroon);
+}
+
+/* Buttons */
+button, [role="button"] {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+/* Card Styles */
+.card, [role="article"] {
+  background-color: var(--bg-white);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* Inputs */
+input, textarea, select {
+  font: inherit;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background-color: var(--bg-white);
+  color: var(--text-dark);
+  transition: all 0.2s ease;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--primary-orange);
+  box-shadow: 0 0 0 3px rgba(224, 122, 63, 0.1);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-beige);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-orange);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-maroon);
+}
