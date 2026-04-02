@@ -4,6 +4,37 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ToastProvider';
 import logo from '../moodofwood.webp';
 
+const FormField = ({ label, type = 'text', value, onChange, placeholder, required = true }) => (
+  <div style={{ marginBottom: '1.5rem' }}>
+    <label style={{
+      display: 'block',
+      marginBottom: '0.6rem',
+      fontWeight: 600,
+      color: 'var(--text-dark)',
+      fontSize: '0.95rem',
+    }}>
+      {label}
+    </label>
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      required={required}
+      placeholder={placeholder}
+      style={{
+        width: '100%',
+        padding: '0.9rem 1.1rem',
+        border: '1px solid var(--border-light)',
+        borderRadius: '6px',
+        fontSize: '0.95rem',
+        backgroundColor: 'var(--bg-white)',
+        boxSizing: 'border-box',
+        transition: 'all 0.2s ease',
+      }}
+    />
+  </div>
+);
+
 export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
@@ -29,36 +60,7 @@ export default function RegisterPage() {
     }
   };
 
-  const FormField = ({ label, type = 'text', value, onChange, placeholder, required = true }) => (
-    <div style={{ marginBottom: '1.5rem' }}>
-      <label style={{
-        display: 'block',
-        marginBottom: '0.6rem',
-        fontWeight: 600,
-        color: 'var(--text-dark)',
-        fontSize: '0.95rem',
-      }}>
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={onChange}
-        required={required}
-        placeholder={placeholder}
-        style={{
-          width: '100%',
-          padding: '0.9rem 1.1rem',
-          border: '1px solid var(--border-light)',
-          borderRadius: '6px',
-          fontSize: '0.95rem',
-          backgroundColor: 'var(--bg-white)',
-          boxSizing: 'border-box',
-          transition: 'all 0.2s ease',
-        }}
-      />
-    </div>
-  );
+
 
   return (
     <div style={{

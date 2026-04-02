@@ -2,22 +2,45 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+
+// 1. Load environment variables for local development
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// 2. Configure CORS to only allow requests from your frontend
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true, // Allow cookies if needed
+}));
+
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error(err));
+// 3. Connect to MongoDB using process.env.MONGODB_URI
+const connectDB = async () => {
+  try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI is not defined in environment variables');
+    }
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('✅ MongoDB securely connected');
+  } catch (err) {
+    console.error('❌ MongoDB Connection Error:', err.message);
+    process.exit(1); // Exit process with failure
+  }
+};
 
+connectDB();
+
+// 4. Routes
 app.use('/api/auth',     require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/users',    require('./routes/users'));
 app.use('/api/tasks',    require('./routes/tasks'));
 
-app.listen(process.env.PORT || 5000, () =>
-  console.log(`Server running on port ${process.env.PORT || 5000}`)
-);
+// 5. Start Server using process.env.PORT
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});

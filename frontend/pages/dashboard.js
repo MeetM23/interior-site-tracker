@@ -3,6 +3,33 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 
+const StatCard = ({ label, value }) => (
+  <div style={{
+    backgroundColor: 'var(--bg-white)',
+    borderRadius: '8px',
+    padding: '2rem 1.5rem',
+    boxShadow: 'var(--shadow-sm)',
+    transition: 'all 0.3s ease',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+  }}
+  onMouseEnter={(e) => {
+    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+    e.currentTarget.style.transform = 'translateY(-2px)';
+  }}
+  onMouseLeave={(e) => {
+    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+    e.currentTarget.style.transform = 'translateY(0)';
+  }}>
+    <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
+      {label}
+    </p>
+    <div style={{ margin: 0, fontSize: '3rem', fontWeight: 700, color: 'var(--text-dark)', fontFamily: "'Playfair Display', serif", lineHeight: 1 }}>{value}</div>
+  </div>
+);
+
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -66,32 +93,7 @@ export default function DashboardPage() {
     return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
 
-  const StatCard = ({ label, value }) => (
-    <div style={{
-      backgroundColor: 'var(--bg-white)',
-      borderRadius: '8px',
-      padding: '2rem 1.5rem',
-      boxShadow: 'var(--shadow-sm)',
-      transition: 'all 0.3s ease',
-      cursor: 'pointer',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-      e.currentTarget.style.transform = 'translateY(-2px)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-      e.currentTarget.style.transform = 'translateY(0)';
-    }}>
-      <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-        {label}
-      </p>
-      <div style={{ margin: 0, fontSize: '3rem', fontWeight: 700, color: 'var(--text-dark)', fontFamily: "'Playfair Display', serif", lineHeight: 1 }}>{value}</div>
-    </div>
-  );
+
 
   return (
     <div>

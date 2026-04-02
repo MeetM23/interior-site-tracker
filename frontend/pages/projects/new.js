@@ -3,6 +3,21 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
 
+const FormField = ({ label, field, type="text", form, setForm }) => (
+  <div style={{ marginBottom: '1.5rem' }}>
+    <label style={{ display: 'block', marginBottom: '0.6rem', fontWeight: 600, color: 'var(--text-dark)', fontSize: '0.95rem' }}>
+      {label}
+    </label>
+    <input
+      type={type}
+      value={form[field]}
+      onChange={e => setForm({...form, [field]: type==='number' ? Number(e.target.value) : e.target.value})}
+      required
+      style={{ width: '100%', padding: '0.9rem 1.1rem', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '0.95rem', backgroundColor: 'var(--bg-white)', boxSizing: 'border-box', transition: 'all 0.2s ease' }}
+    />
+  </div>
+);
+
 export default function NewProjectPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -36,20 +51,7 @@ export default function NewProjectPage() {
 
   if (!user) return <p>Loading...</p>;
 
-  const FormField = ({ label, field, type="text" }) => (
-    <div style={{ marginBottom: '1.5rem' }}>
-      <label style={{ display: 'block', marginBottom: '0.6rem', fontWeight: 600, color: 'var(--text-dark)', fontSize: '0.95rem' }}>
-        {label}
-      </label>
-      <input
-        type={type}
-        value={form[field]}
-        onChange={e => setForm({...form, [field]: type==='number' ? Number(e.target.value) : e.target.value})}
-        required
-        style={{ width: '100%', padding: '0.9rem 1.1rem', border: '1px solid var(--border-light)', borderRadius: '6px', fontSize: '0.95rem', backgroundColor: 'var(--bg-white)', boxSizing: 'border-box', transition: 'all 0.2s ease' }}
-      />
-    </div>
-  );
+
 
   return (
     <div>
@@ -61,12 +63,12 @@ export default function NewProjectPage() {
       <div style={{ backgroundColor: 'var(--bg-white)', borderRadius: '8px', padding: '2.5rem', border: '1px solid var(--border-light)', boxShadow: 'var(--shadow-sm)', maxWidth: '800px' }}>
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '0 1.5rem' }}>
-            <FormField label="Project Name" field="name" />
-            <FormField label="Client Name" field="clientName" />
-            <FormField label="Location" field="location" />
-            <FormField label="Budget ($)" field="budget" type="number" />
-            <FormField label="Start Date" field="startDate" type="date" />
-            <FormField label="End Date" field="endDate" type="date" />
+            <FormField label="Project Name" field="name" form={form} setForm={setForm} />
+            <FormField label="Client Name" field="clientName" form={form} setForm={setForm} />
+            <FormField label="Location" field="location" form={form} setForm={setForm} />
+            <FormField label="Budget ($)" field="budget" type="number" form={form} setForm={setForm} />
+            <FormField label="Start Date" field="startDate" type="date" form={form} setForm={setForm} />
+            <FormField label="End Date" field="endDate" type="date" form={form} setForm={setForm} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '0 1.5rem' }}>
@@ -89,7 +91,7 @@ export default function NewProjectPage() {
             </div>
           </div>
 
-          <FormField label="Completion Percent" field="completionPercent" type="number" />
+          <FormField label="Completion Percent" field="completionPercent" type="number" form={form} setForm={setForm} />
 
           {error && (
             <div style={{ backgroundColor: '#FFF5F5', border: '1px solid #FFEBEB', padding: '1rem', borderRadius: '6px', marginBottom: '1.5rem', color: 'var(--danger-red)', fontSize: '0.9rem', fontWeight: 500 }}>
