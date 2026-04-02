@@ -8,10 +8,22 @@ require('dotenv').config();
 
 const app = express();
 
-// 2. Configure CORS to only allow requests from your frontend
+// 2. Configure CORS to allow local and production frontends
+const allowedOrigins = [
+  'http://localhost:3000',
+  process.env.CLIENT_URL,
+  'https://interior-site-tracker.vercel.app' // Explicitly adding for safety
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true, // Allow cookies if needed
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
 }));
 
 app.use(express.json());
