@@ -2,7 +2,8 @@ const router = require('express').Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-const sign = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secure_secret_for_jwt_signing';
+const sign = (id) => jwt.sign({ id }, JWT_SECRET, { expiresIn: '7d' });
 
 router.post('/register', async (req, res) => {
   try {

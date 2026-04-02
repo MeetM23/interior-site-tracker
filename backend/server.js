@@ -8,22 +8,10 @@ require('dotenv').config();
 
 const app = express();
 
-// 2. Configure CORS to allow local and production frontends
-const allowedOrigins = [
-  'http://localhost:3000',
-  process.env.CLIENT_URL,
-  'https://interior-site-tracker.vercel.app' // Explicitly adding for safety
-].filter(Boolean);
-
+// 2. Configure CORS to only allow requests from your frontend
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true, // Allow cookies if needed
 }));
 
 app.use(express.json());
@@ -46,10 +34,10 @@ const connectDB = async () => {
 connectDB();
 
 // 4. Routes
-app.use('/api/auth',     require('./routes/auth'));
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/projects', require('./routes/projects'));
-app.use('/api/users',    require('./routes/users'));
-app.use('/api/tasks',    require('./routes/tasks'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/tasks', require('./routes/tasks'));
 
 // 5. Start Server using process.env.PORT
 const PORT = process.env.PORT || 5000;
