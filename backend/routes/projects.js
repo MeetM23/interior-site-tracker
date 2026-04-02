@@ -21,8 +21,12 @@ const recalcProject = (project) => {
     project.completionPercent = project.completionPercent || 0;
   }
 
+  if (project.autoProgress && project.completionPercent === 100 && project.status !== 'cancelled') {
+    project.status = 'completed';
+  }
+
   const now = new Date();
-  if (project.endDate && new Date(project.endDate) < now && project.status !== 'completed') {
+  if (project.endDate && new Date(project.endDate) < now && project.status !== 'completed' && project.status !== 'cancelled') {
     project.status = 'delayed';
   }
 
@@ -51,6 +55,9 @@ router.get('/', protect, async (req, res) => {
     const filter = req.user.role === 'designer' ? { assignedDesigner: req.user._id } : {};
     const projects = await Project.find(filter)
       .populate('assignedDesigner', 'name email')
+      .populate('projectManager', 'name email')
+      .populate('siteSupervisor', 'name email')
+      .populate('workersVendors', 'name email')
       .populate('tasks.assignedTo', 'name')
       .sort('-createdAt');
     return res.json({ success: true, data: projects });
@@ -112,6 +119,9 @@ router.get('/:id', protect, async (req, res) => {
   try {
     const p = await Project.findById(req.params.id)
       .populate('assignedDesigner', 'name email')
+      .populate('projectManager', 'name email')
+      .populate('siteSupervisor', 'name email')
+      .populate('workersVendors', 'name email')
       .populate('tasks.assignedTo', 'name')
       .populate('updates.createdBy', 'name')
       .populate('gallery.uploadedBy', 'name profilePhoto');
@@ -123,27 +133,42 @@ router.get('/:id', protect, async (req, res) => {
 });
 
 // CREATE project (owner only)
-router.post('/', protect, ownerOnly, async (req, res) => {
+router.post('/', protect, ownerOnly, upload.array('documents', 10), async (req, res) => {
   try {
+    let bodyData = req.body;
+    if (req.body.data) {
+      bodyData = JSON.parse(req.body.data);
+    }
+
     const DEFAULT_MILESTONES = [
       'Design Finalization','Material Procurement',
       'Execution Start','Mid Completion','Final Handover'
     ].map(name => ({ name, status: 'pending' }));
 
     const payload = {
-      ...req.body,
-      milestones: DEFAULT_MILESTONES,
+      ...bodyData,
+      milestones: bodyData.milestones || DEFAULT_MILESTONES,
       completionPercent: 0,
-      status: req.body.status || 'on_track',
+      status: bodyData.status || 'not_started',
       createdBy: req.user._id,
       lastUpdatedAt: new Date()
     };
 
+    if (req.files && req.files.length > 0) {
+      payload.documents = req.files.map(f => ({
+        url: `${req.protocol}://${req.get('host')}/uploads/${f.filename}`,
+        name: f.originalname,
+        type: 'Document'
+      }));
+    }
+
     const p = await Project.create(payload);
     const project = await Project.findById(p._id)
       .populate('assignedDesigner', 'name email')
-      .populate('tasks.assignedTo', 'name')
-      .populate('updates.createdBy', 'name');
+      .populate('projectManager', 'name email')
+      .populate('siteSupervisor', 'name email')
+      .populate('workersVendors', 'name email')
+      .populate('tasks.assignedTo', 'name');
 
     return res.status(201).json({ success: true, message: 'Project created', data: project });
   } catch (e) {
@@ -168,6 +193,9 @@ router.put('/:id', protect, async (req, res) => {
 
     project = await Project.findById(req.params.id)
       .populate('assignedDesigner', 'name email')
+      .populate('projectManager', 'name email')
+      .populate('siteSupervisor', 'name email')
+      .populate('workersVendors', 'name email')
       .populate('tasks.assignedTo', 'name')
       .populate('updates.createdBy', 'name');
 

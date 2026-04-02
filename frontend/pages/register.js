@@ -169,6 +169,9 @@ export default function RegisterPage() {
               >
                 <option value="owner">Project Owner</option>
                 <option value="designer">Interior Designer</option>
+                <option value="manager">Project Manager</option>
+                <option value="supervisor">Site Supervisor</option>
+                <option value="worker">Worker / Vendor</option>
               </select>
               <p style={{
                 fontSize: '0.8rem',
@@ -176,7 +179,11 @@ export default function RegisterPage() {
                 marginTop: '0.4rem',
                 margin: '0.4rem 0 0 0',
               }}>
-                {form.role === 'owner' ? 'Manage projects and collaborate with designers' : 'Work on assigned projects and submit updates'}
+                {form.role === 'owner' ? 'Manage projects and collaborate with designers' : 
+                 form.role === 'designer' ? 'Work on assigned projects and submit updates' :
+                 form.role === 'manager' ? 'Oversee operations and manage task lists' :
+                 form.role === 'supervisor' ? 'Monitor site progress and report updates' :
+                 'Participate in project execution and specific tasks'}
               </p>
             </div>
 

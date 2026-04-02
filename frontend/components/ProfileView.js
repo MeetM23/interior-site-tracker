@@ -5,7 +5,7 @@ import api from '../lib/api';
 
 export default function ProfileView({ userId }) {
   const router = useRouter();
-  const { user: authedUser } = useAuth(); // The currently logged in user
+  const { user: authedUser, logout } = useAuth(); // The currently logged in user
   
   const [profile, setProfile] = useState(null);
   const [projects, setProjects] = useState([]);
@@ -25,6 +25,7 @@ export default function ProfileView({ userId }) {
         const pData = userRes.data?.data;
         setProfile(pData);
         setFormData({
+          name: pData.name || '',
           phone: pData.phone || '',
           businessInfo: {
             companyName: pData.businessInfo?.companyName || '',
@@ -79,7 +80,8 @@ export default function ProfileView({ userId }) {
     e.preventDefault();
     setUpdateMsg('');
     try {
-      await api.put(`/users/${userId}`, formData);
+      const resp = await api.put(`/users/${userId}`, formData);
+      setProfile(resp.data.data);
       setUpdateMsg('Profile settings updated successfully.');
       setTimeout(() => setUpdateMsg(''), 3000);
     } catch (err) {
@@ -102,6 +104,21 @@ export default function ProfileView({ userId }) {
        setTimeout(() => setUpdateMsg(''), 3000);
     } catch(err) {
        setUpdateMsg('Photo upload failed.');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("Are you sure you want to permanently delete this account? This cannot be undone.")) return;
+    try {
+      await api.delete(`/users/${userId}`);
+      if (isSelf) {
+        logout();
+        router.push('/login');
+      } else {
+        router.push('/team');
+      }
+    } catch (err) {
+      setUpdateMsg(err.response?.data?.message || 'Failed to delete account');
     }
   };
 
@@ -132,6 +149,7 @@ export default function ProfileView({ userId }) {
   ).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const isSelf = authedUser?._id === userId;
+  const canDelete = isSelf || (authedUser?.role === 'owner' && profile.role !== 'owner');
 
   return (
     <div style={{ maxWidth: '1000px' }}>
@@ -320,6 +338,10 @@ export default function ProfileView({ userId }) {
               <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Basic Settings</h2>
               <div style={{ display: 'grid', gap: '1.5rem' }}>
                  <div>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.9rem' }}>Full Name</label>
+                    <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} style={{ width: '100%', maxWidth: '400px' }} disabled={!isSelf} required />
+                 </div>
+                 <div>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500, fontSize: '0.9rem' }}>Phone Number</label>
                     <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} style={{ width: '100%', maxWidth: '400px' }} disabled={!isSelf} />
                  </div>
@@ -384,6 +406,13 @@ export default function ProfileView({ userId }) {
              <div>
                 <button type="submit" style={{ padding: '1rem 2.5rem', backgroundColor: 'var(--text-dark)', color: 'white', borderRadius: '6px', fontSize: '1rem', fontWeight: 600 }}>Save Changes</button>
                 {updateMsg && <span style={{ marginLeft: '1rem', color: updateMsg.includes('Failed') ? 'var(--danger-red)' : 'var(--success-green)', fontWeight: 500 }}>{updateMsg}</span>}
+             </div>
+           )}
+
+           {canDelete && (
+             <div style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '1px solid var(--border-light)' }}>
+                <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem', color: 'var(--danger-red)' }}>Danger Zone</h2>
+                <button type="button" onClick={handleDeleteAccount} style={{ padding: '0.75rem 1.5rem', backgroundColor: '#FFF5F5', color: 'var(--danger-red)', border: '1px solid #FFEBEB', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>Permanently Delete Account</button>
              </div>
            )}
         </form>

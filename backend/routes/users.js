@@ -114,11 +114,27 @@ router.put('/:id', protect, async (req, res) => {
   }
 });
 
-router.delete('/:id', protect, ownerOnly, async (req, res) => {
+router.delete('/:id', protect, async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     return res.status(400).json({ success: false, message: 'Invalid user ID' });
   }
   try {
+    const userToDelete = await User.findById(req.params.id);
+    if (!userToDelete) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    // Permission checks
+    const isOwner = req.user.role === 'owner';
+    const isSelf = req.user._id.toString() === req.params.id;
+    
+    if (!isOwner && !isSelf) {
+       return res.status(403).json({ success: false, message: 'Not authorized to delete this account' });
+    }
+    
+    // Owner cannot delete another owner
+    if (isOwner && !isSelf && userToDelete.role === 'owner') {
+       return res.status(403).json({ success: false, message: 'Admins cannot delete other Admins' });
+    }
+
     await User.findByIdAndDelete(req.params.id);
     return res.json({ success: true, message: 'User deleted' });
   } catch (e) {
