@@ -67,10 +67,10 @@ export default function ProjectsPage() {
         <div>
           <h1 style={{ marginBottom: '0.5rem' }}>Projects</h1>
           <p style={{ fontSize: '1rem', color: 'var(--text-muted)', margin: 0 }}>
-            {user.role === 'owner' ? 'Manage all your interior design projects' : 'View your assigned projects'}
+            {user.role === 'OWNER' ? 'Manage all your interior design projects' : 'View your assigned projects'}
           </p>
         </div>
-        {user.role === 'owner' && (
+        {user.role === 'OWNER' && (
           <Link href="/projects/new">
             <button style={{
               padding: '0.8rem 1.6rem',
@@ -118,9 +118,9 @@ export default function ProjectsPage() {
           boxShadow: 'var(--shadow-sm)',
         }}>
           <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-            {user.role === 'owner' ? 'No projects yet. Create your first interior site project to get started.' : 'No projects assigned to you yet. Hang tight.'}
+            {user.role === 'OWNER' ? 'No projects yet. Create your first interior site project to get started.' : 'No projects assigned to you yet. Hang tight.'}
           </p>
-          {user.role === 'owner' && (
+          {user.role === 'OWNER' && (
             <Link href="/projects/new">
               <button style={{
                 padding: '0.8rem 1.6rem',
@@ -174,7 +174,7 @@ export default function ProjectsPage() {
               {/* Project Header */}
               <h3 style={{ marginTop: 0, marginBottom: '0.5rem', fontSize: '1.2rem' }}>{p.name}</h3>
               <p style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                {p.clientName} • {p.location}
+                {p.clientId?.name || 'Unknown Client'} • {p.location}
               </p>
 
               {/* Project Dates */}
@@ -228,7 +228,7 @@ export default function ProjectsPage() {
                   </span>
                 </div>
                 
-                {user?.role === 'owner' && (
+                {user?.role === 'OWNER' && (
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                       onClick={(e) => {

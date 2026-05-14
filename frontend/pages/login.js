@@ -18,9 +18,13 @@ export default function LoginPage() {
     setIsLoading(true);
     setError('');
     try {
-      await login(email, password);
+      const u = await login(email, password);
       addToast('success', 'Welcome back!');
-      router.push('/dashboard');
+      if (u.role === 'SUPER_ADMIN') {
+        router.push('/admin');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err) {
       const msg = err.response?.data?.message || err.message || 'Login failed';
       setError(msg);
@@ -190,23 +194,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Register Link */}
-          <div style={{
-            marginTop: '1.5rem',
-            paddingTop: '1.5rem',
-            borderTop: '1px solid var(--border-light)',
-            textAlign: 'center',
-            color: 'var(--text-muted)',
-            fontSize: '0.95rem',
-          }}>
-            Don't have an account?{' '}
-            <a href="/register" style={{
-              color: 'var(--primary-orange)',
-              fontWeight: 600,
-            }}>
-              Create one
-            </a>
-          </div>
         </div>
       </div>
     </div>

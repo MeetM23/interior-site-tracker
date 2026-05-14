@@ -1,328 +1,178 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 
-const StatCard = ({ label, value }) => (
-  <div style={{
-    backgroundColor: 'var(--bg-white)',
-    borderRadius: '8px',
-    padding: '2rem 1.5rem',
-    boxShadow: 'var(--shadow-sm)',
-    transition: 'all 0.3s ease',
-    cursor: 'pointer',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-  }}
-  onMouseEnter={(e) => {
-    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-    e.currentTarget.style.transform = 'translateY(-2px)';
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-    e.currentTarget.style.transform = 'translateY(0)';
-  }}>
-    <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-      {label}
-    </p>
-    <div style={{ margin: 0, fontSize: '3rem', fontWeight: 700, color: 'var(--text-dark)', fontFamily: "'Playfair Display', serif", lineHeight: 1 }}>{value}</div>
-  </div>
-);
+const styles = {
+  container: { padding: '2rem', maxWidth: '1400px', margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' },
+  header: { marginBottom: '2.5rem' },
+  title: { fontSize: '2rem', fontWeight: 600, color: '#1d1d1f', margin: '0 0 0.5rem 0', letterSpacing: '-0.02em' },
+  subtitle: { fontSize: '1.05rem', color: '#86868b', margin: 0 },
+  card: { backgroundColor: '#ffffff', borderRadius: '16px', padding: '1.5rem', boxShadow: '0 4px 12px rgba(0,0,0,0.03), 0 1px 3px rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' },
+  gridSummary: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginBottom: '2rem' },
+  gridMain: { display: 'grid', gridTemplateColumns: '1fr 1.5fr 1fr', gap: '1.5rem', alignItems: 'start' },
+  summaryVal: { fontSize: '2.5rem', fontWeight: 700, margin: '1rem 0 0.5rem 0', letterSpacing: '-1px' },
+  summaryLabel: { fontSize: '0.9rem', color: '#86868b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 },
+  sectionTitle: { fontSize: '1.1rem', fontWeight: 600, color: '#1d1d1f', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  listItem: { padding: '1rem', borderBottom: '1px solid #f2f2f7', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  tag: { padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' },
+  notification: { padding: '1rem', borderBottom: '1px solid #f2f2f7', fontSize: '0.9rem', color: '#1d1d1f' }
+};
 
-export default function DashboardPage() {
+export default function Dashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [projects, setProjects] = useState([]);
-  const [alerts, setAlerts] = useState([]);
+
+  const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const [loadingDashboard, setLoadingDashboard] = useState(true);
-  const [dismissedAlerts, setDismissedAlerts] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (!user) return;
-    const load = async () => {
-      setLoadingDashboard(true);
-      try {
-        const [p, a] = await Promise.all([
-          api.get('/projects'), api.get('/projects/meta/alerts')
-        ]);
-        setProjects(p.data?.data || []);
-        setAlerts(a.data?.data || []);
-      } catch (err) {
-        const msg = err.response?.data?.message || 'Failed to load dashboard';
-        setError(msg);
-      } finally {
-        setLoadingDashboard(false);
-      }
-    };
-    load();
+    if (user) {
+      setLoadingData(true);
+      api.get('/dashboard')
+        .then(r => setData(r.data.data))
+        .catch(e => setError(e.response?.data?.message || 'Error loading dashboard'))
+        .finally(() => setLoadingData(false));
+    }
   }, [user]);
 
-  if (!user) return <p>Loading...</p>;
-
-  if (loadingDashboard) {
-    return (
-      <div style={{ textAlign: 'center', paddingTop: '3rem' }}>
-        <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>Loading dashboard...</p>
-      </div>
-    );
-  }
-
-  const total = projects.length;
-  const completed = projects.filter(p => p.status === 'completed').length;
-  const delayed = projects.filter(p => p.status === 'delayed').length;
-  const onTrack = projects.filter(p => p.status === 'on_track').length;
-  const atRisk = projects.filter(p => p.status === 'at_risk').length;
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed': return 'var(--success-green)';
-      case 'on_track': return 'var(--primary-orange)';
-      case 'at_risk': return 'var(--warning-yellow)';
-      case 'delayed': return 'var(--danger-red)';
-      default: return 'var(--text-muted)';
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-  };
-
-
+  if (loading || !user) return null;
 
   return (
-    <div>
-      <div style={{ marginBottom: '2.5rem' }}>
-        <h1 style={{ marginBottom: '0.5rem' }}>Dashboard</h1>
-        <p style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Welcome back, {user.name}. Here's your project overview.</p>
+    <div style={styles.container}>
+      <Head><title>Dashboard</title></Head>
+      <div style={styles.header}>
+        <h1 style={styles.title}>Dashboard Overview</h1>
+        <p style={styles.subtitle}>Welcome back, {user.name.split(' ')[0]}. Here is what is happening across your workspace.</p>
       </div>
 
-      {error && (
-        <div style={{
-          backgroundColor: '#FFF5F5',
-          padding: '1rem 1.5rem',
-          borderRadius: '8px',
-          border: '1px solid #FFEBEB',
-          marginBottom: '2rem',
-          color: 'var(--danger-red)',
-          fontWeight: 500,
-        }}>
-          {error}
-        </div>
-      )}
-
-      {/* Stats Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '1.5rem',
-        marginBottom: '3rem',
-      }}>
-        <StatCard label="Total Projects" value={total} />
-        <StatCard label="Completed" value={completed} />
-        <StatCard label="On Track" value={onTrack} />
-        <StatCard label="At Risk" value={atRisk} />
-        <StatCard label="Delayed" value={delayed} />
-      </div>
-
-      {/* Alerts Section */}
-      {alerts.length > 0 && (
-        <div style={{ marginBottom: '3rem' }}>
-          <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            Active Alerts
-          </h2>
-          <div style={{
-            display: 'grid',
-            gap: '1rem',
-          }}>
-            {alerts
-              .filter(a => !dismissedAlerts.includes(`${a.id}-${a.type}`))
-              .map(a => (
-                <div key={`${a.id}-${a.type}`} style={{
-                  backgroundColor: 'var(--bg-white)',
-                  borderLeft: `4px solid ${a.type === 'delay' ? 'var(--danger-red)' : a.type === 'deadline' ? 'var(--warning-yellow)' : 'var(--text-muted)'}`,
-                  padding: '1.5rem',
-                  borderRadius: '10px',
-                  boxShadow: 'var(--shadow-sm)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}>
-                  <div>
-                    <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase' }}>
-                      {a.type?.toUpperCase()}
-                    </p>
-                    <p style={{ margin: 0, fontWeight: 600, color: 'var(--text-dark)' }}>
-                      {a.project}
-                    </p>
-                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                      {a.message}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setDismissedAlerts(prev => [...prev, `${a.id}-${a.type}`])}
-                    style={{
-                      padding: '0.6rem 1.2rem',
-                      backgroundColor: 'transparent',
-                      border: '1px solid var(--border-light)',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontWeight: 500,
-                      color: 'var(--text-muted)',
-                      transition: 'all 0.2s ease',
-                      whiteSpace: 'nowrap',
-                      marginLeft: '1rem',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--danger-red)';
-                      e.currentTarget.style.color = 'white';
-                      e.currentTarget.style.borderColor = 'var(--danger-red)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--text-muted)';
-                      e.currentTarget.style.borderColor = 'var(--border-light)';
-                    }}>
-                    Dismiss
-                  </button>
-                </div>
-              ))}
+      {loadingData ? (
+        <div style={{ textAlign: 'center', padding: '3rem', color: '#86868b' }}>Loading metrics...</div>
+      ) : error ? (
+        <div style={{ color: '#ff3b30', backgroundColor: '#fff0f0', padding: '1rem', borderRadius: '8px' }}>{error}</div>
+      ) : data ? (
+        <>
+          {/* Top Summary Cards */}
+          <div style={styles.gridSummary}>
+            <div style={styles.card}>
+              <div style={styles.summaryLabel}>Total Projects</div>
+              <div style={{...styles.summaryVal, color: '#1d1d1f'}}>{data.summary.total}</div>
+            </div>
+            <div style={styles.card}>
+              <div style={styles.summaryLabel}>Active</div>
+              <div style={{...styles.summaryVal, color: '#0071e3'}}>{data.summary.active}</div>
+            </div>
+            <div style={styles.card}>
+              <div style={styles.summaryLabel}>Completed</div>
+              <div style={{...styles.summaryVal, color: '#34c759'}}>{data.summary.completed}</div>
+            </div>
+            <div style={styles.card}>
+              <div style={styles.summaryLabel}>Delayed</div>
+              <div style={{...styles.summaryVal, color: '#ff3b30'}}>{data.summary.delayed}</div>
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Recent Updates */}
-      {projects.some(p => p.updates && p.updates.length > 0) && (
-        <div style={{ marginBottom: '3rem' }}>
-          <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            Recent Updates
-          </h2>
-          <div style={{
-            display: 'grid',
-            gap: '1rem',
-          }}>
-            {projects
-              .flatMap(p => (p.updates || []).map(u => ({ projectId: p._id, projectName: p.name, ...u })))
-              .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-              .slice(0, 5)
-              .map((u, idx) => (
-                <div key={`${u._id || idx}`} style={{
-                  backgroundColor: 'var(--bg-white)',
-                  padding: '1.5rem',
-                  borderRadius: '8px',
-                  boxShadow: 'var(--shadow-sm)',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                    <div>
-                      <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600 }}>
-                        {u.projectName}
-                      </p>
-                      <p style={{ margin: 0, color: 'var(--text-dark)', lineHeight: 1.5 }}>
-                        {u.notes}
-                      </p>
+          {/* 3 Column Grid for Alerts, Today, Notifications */}
+          <div style={styles.gridMain}>
+            
+            {/* L1: Alerts */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={styles.card}>
+                <h3 style={styles.sectionTitle}>
+                  Deadline Alerts
+                  <span style={{ backgroundColor: '#ffcece', color: '#ff3b30', padding: '0.2rem 0.6rem', borderRadius: '12px', fontSize: '0.8rem' }}>{data.alerts.deadlines.length}</span>
+                </h3>
+                <div style={{ overflowY: 'auto', maxHeight: '400px' }}>
+                  {data.alerts.deadlines.length === 0 ? <p style={{color: '#86868b', fontSize: '0.9rem'}}>All clear!</p> : null}
+                  {data.alerts.deadlines.map((alert, i) => (
+                    <div key={i} style={styles.listItem} onClick={() => router.push(`/projects/${alert.projectId}`)} className="hover-item">
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{alert.title}</span>
+                        <span style={{ ...styles.tag, backgroundColor: alert.type === 'overdue' ? '#ffcece' : '#fff5cc', color: alert.type === 'overdue' ? '#ff3b30' : '#d97706' }}>
+                          {alert.type}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#86868b' }}>{alert.project}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#1d1d1f' }}>Due: {new Date(alert.date).toLocaleDateString()}</div>
                     </div>
-                    <time style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flexShrink: 0, marginLeft: '1rem' }}>
-                      {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </time>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* Project List */}
-      <div>
-        <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          Projects
-        </h2>
-        {projects.length === 0 ? (
-          <div style={{
-            backgroundColor: 'var(--bg-white)',
-            padding: '3rem',
-            borderRadius: '12px',
-            textAlign: 'center',
-            boxShadow: 'var(--shadow-sm)',
-          }}>
-            <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', margin: 0 }}>
-              No projects yet. Start by creating a new interior site project.
-            </p>
-          </div>
-        ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '1.5rem',
-          }}>
-            {projects.map(p => (
-              <div
-                key={p._id}
-                onClick={() => router.push(`/projects/${p._id}`)}
-                style={{
-                  backgroundColor: 'var(--bg-white)',
-                  borderRadius: '8px',
-                  padding: '2rem 1.5rem',
-                  boxShadow: 'var(--shadow-sm)',
-                  cursor: 'pointer',
-                  transition: 'all 0.3s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }}>
-                <h3 style={{ marginTop: 0, marginBottom: '0.5rem' }}>{p.name}</h3>
-                <p style={{ margin: '0 0 1rem 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                  {p.clientName} — {p.location}
-                </p>
-                <div style={{ marginBottom: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Progress</span>
-                    <span style={{ fontWeight: 600, color: getStatusColor(p.status) }}>{p.completionPercent || 0}%</span>
-                  </div>
-                  <div style={{
-                    height: '6px',
-                    backgroundColor: 'var(--border-light)',
-                    borderRadius: '3px',
-                    overflow: 'hidden',
-                  }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${p.completionPercent || 0}%`,
-                      backgroundColor: getStatusColor(p.status),
-                      transition: 'width 0.3s ease',
-                    }} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getStatusColor(p.status) }} />
-                    <span style={{
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: 'var(--text-muted)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}>
-                      {getStatusLabel(p.status)}
-                    </span>
-                  </div>
+                  ))}
                 </div>
               </div>
-            ))}
+
+              <div style={styles.card}>
+                <h3 style={styles.sectionTitle}>Project Status Alerts</h3>
+                <div style={{ overflowY: 'auto', maxHeight: '300px' }}>
+                  {data.alerts.status.length === 0 ? <p style={{color: '#86868b', fontSize: '0.9rem'}}>No project issues.</p> : null}
+                  {data.alerts.status.map((alert, i) => (
+                    <div key={i} style={styles.listItem} onClick={() => router.push(`/projects/${alert.id}`)} className="hover-item">
+                       <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{alert.title}</span>
+                       <span style={{ fontSize: '0.8rem', color: '#ff3b30', fontWeight: 500 }}>{alert.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* M1: Today's Work */}
+            <div style={{...styles.card, minHeight: '600px'}}>
+              <h3 style={styles.sectionTitle}>Today's Work <span style={{fontWeight: 400, color: '#86868b', fontSize: '0.9rem'}}>{new Date().toDateString()}</span></h3>
+              
+              <div style={{ marginBottom: '2rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#86868b', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '1px' }}>Tasks Scheduled</div>
+                {data.todayWork.tasks.length === 0 ? <p style={{color: '#86868b', fontSize: '0.9rem', fontStyle: 'italic'}}>No tasks due today.</p> : null}
+                {data.todayWork.tasks.map((task, i) => (
+                   <div key={Math.random()} style={{...styles.listItem, borderLeft: '4px solid #0071e3', paddingLeft: '1rem', backgroundColor: '#f9f9f9', borderRadius: '0 8px 8px 0', marginBottom: '0.5rem', cursor: 'pointer'}} onClick={() => router.push(`/projects/${task.projectId}`)}>
+                     <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>{task.title}</div>
+                     <div style={{ fontSize: '0.8rem', color: '#86868b' }}>Project: {task.project}</div>
+                   </div>
+                ))}
+              </div>
+
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#86868b', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '1px' }}>Milestones Target</div>
+                {data.todayWork.milestones.length === 0 ? <p style={{color: '#86868b', fontSize: '0.9rem', fontStyle: 'italic'}}>No milestones hitting target today.</p> : null}
+                {data.todayWork.milestones.map((m, i) => (
+                   <div key={Math.random()} style={{...styles.listItem, borderLeft: '4px solid #34c759', paddingLeft: '1rem', backgroundColor: '#f9f9f9', borderRadius: '0 8px 8px 0', marginBottom: '0.5rem', cursor: 'pointer'}} onClick={() => router.push(`/projects/${m.projectId}`)}>
+                     <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>{m.title}</div>
+                     <div style={{ fontSize: '0.8rem', color: '#86868b' }}>Project: {m.project}</div>
+                   </div>
+                ))}
+              </div>
+            </div>
+
+            {/* R1: Notifications */}
+            <div style={{...styles.card, minHeight: '600px', backgroundColor: '#fbfbfd'}}>
+              <h3 style={styles.sectionTitle}>Global Feed</h3>
+              <div style={{ overflowY: 'auto', maxHeight: '700px', paddingRight: '0.5rem' }}>
+                {data.notifications.length === 0 ? <p style={{color: '#86868b', fontSize: '0.9rem'}}>No recent activity.</p> : null}
+                {data.notifications.map((n, i) => (
+                  <div key={i} style={styles.notification}>
+                    <div style={{ fontSize: '0.75rem', color: '#86868b', marginBottom: '0.3rem' }}>
+                      {new Date(n.createdAt).toLocaleString()} • {n.createdBy?.name || 'System'}
+                    </div>
+                    <div>{n.notes}</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#0071e3', marginTop: '0.3rem', cursor: 'pointer' }} onClick={() => router.push(`/projects/${n.projectId}`)}>
+                      {n.project}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
-        )}
-      </div>
+        </>
+      ) : null}
+      
+      <style>{`
+        .hover-item { cursor: pointer; transition: background-color 0.2s; }
+        .hover-item:hover { background-color: #fbfbfd; }
+      `}</style>
     </div>
   );
 }

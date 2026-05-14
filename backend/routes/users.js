@@ -1,142 +1,149 @@
 const router = require('express').Router();
 const User = require('../models/User');
-const { protect, ownerOnly } = require('../middleware/auth');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { protect, authorizeRoles, requireCompany } = require('../middleware/auth');
 
-// Ensure uploads directory exists
-const uploadDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Set up multer config
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, 'profile-' + Date.now() + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage: storage });
-
-router.get('/', protect, ownerOnly, async (req, res) => {
+// GET users
+// SUPER_ADMIN gets all users.
+// OWNER / DESIGNER gets users in their company.
+router.get('/', protect, async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort('createdAt');
+    let filter = {};
+    if (req.user.role !== 'SUPER_ADMIN') {
+      filter.companyId = req.user.companyId;
+    }
+    
+    // Optional query filters
+    if (req.query.role) filter.role = req.query.role;
+    if (req.query.companyId && req.user.role === 'SUPER_ADMIN') {
+      filter.companyId = req.query.companyId;
+    }
+
+    const users = await User.find(filter).select('-password').populate('companyId', 'name').sort('createdAt');
     return res.json({ success: true, data: users });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
   }
 });
 
-// Profile photo upload route
-router.post('/photo', protect, upload.single('photo'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ success: false, message: 'No file uploaded' });
-  }
-  try {
-    const photoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-    const user = await User.findById(req.user._id);
-    user.profilePhoto = photoUrl;
-    await user.save();
-    return res.json({ success: true, photoUrl });
-  } catch (e) {
-    return res.status(500).json({ success: false, message: e.message });
-  }
-});
-
+// GET self profile
 router.get('/me', protect, async (req, res) => {
-  return res.json({ success: true, data: req.user });
-});
-
-router.get('/:id', protect, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ success: false, message: 'Invalid user ID' });
-  }
   try {
-    const reqUser = await User.findById(req.params.id).select('-password');
-    if (!reqUser) return res.status(404).json({ success: false, message: 'User not found' });
-    
-    // Only owner can view other profiles OR user viewing themselves
-    if (req.user.role !== 'owner' && req.user._id.toString() !== req.params.id) {
-       return res.status(403).json({ success: false, message: 'Forbidden access to profile' });
-    }
-    return res.json({ success: true, data: reqUser });
+    const user = await User.findById(req.user._id).select('-password').populate('companyId', 'name');
+    return res.json({ success: true, data: user });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
   }
 });
 
-const mongoose = require('mongoose');
-
-router.put('/:id', protect, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ success: false, message: 'Invalid user ID' });
-  }
+// GET user by ID
+router.get('/:id', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    let filter = { _id: req.params.id };
+    // Check scoping unless SUPER_ADMIN
+    if (req.user.role !== 'SUPER_ADMIN') {
+      filter.companyId = req.user.companyId;
+    }
+    
+    const userRecord = await User.findOne(filter).select('-password').populate('companyId', 'name');
+    if (!userRecord) return res.status(404).json({ success: false, message: 'User not found or access denied' });
+    
+    return res.json({ success: true, data: userRecord });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
+});
 
-    // Allow owner to update anyone, or user to update themselves
-    if (req.user.role !== 'owner' && req.user._id.toString() !== req.params.id) {
-      return res.status(403).json({ success: false, message: 'Forbidden update access' });
+// CREATE user
+// SUPER_ADMIN creates OWNERs.
+// OWNERs create DESIGNERs.
+router.post('/', protect, authorizeRoles('SUPER_ADMIN', 'OWNER'), async (req, res) => {
+  try {
+    const { name, email, password, role, companyId, phone } = req.body;
+    
+    if (req.user.role === 'OWNER') {
+      if (role !== 'DESIGNER') {
+         return res.status(403).json({ success: false, message: 'Owners can only create Designers' });
+      }
+      req.body.companyId = req.user.companyId;
+    } else if (req.user.role === 'SUPER_ADMIN') {
+      if (!companyId) {
+         return res.status(400).json({ success: false, message: 'companyId is required when creating a user as super admin' });
+      }
+    }
+    
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+       return res.status(400).json({ success: false, message: 'User already exists with this email' });
     }
 
-    const updatable = ['name', 'email', 'phone', 'profilePhoto'];
-    updatable.forEach(key => {
-      if (req.body[key] !== undefined) user[key] = req.body[key];
-    });
-
-    // Only owners can change roles
-    if (req.user.role === 'owner' && req.body.role) {
-       user.role = req.body.role;
-    }
-
-    if (req.body.businessInfo) {
-      user.businessInfo = { ...user.businessInfo, ...req.body.businessInfo };
-    }
-    if (req.body.designerInfo) {
-      user.designerInfo = { ...user.designerInfo, ...req.body.designerInfo };
-    }
-    if (req.body.settings) {
-      user.settings = { ...user.settings, ...req.body.settings };
-    }
-
-    if (req.body.password) user.password = req.body.password;
-    await user.save();
+    const user = await User.create(req.body);
     const result = user.toObject();
     delete result.password;
-    return res.json({ success: true, data: result });
+
+    return res.status(201).json({ success: true, data: result });
   } catch (e) {
     return res.status(400).json({ success: false, message: e.message });
   }
 });
 
-router.delete('/:id', protect, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ success: false, message: 'Invalid user ID' });
-  }
+// DELETE user
+router.delete('/:id', protect, authorizeRoles('SUPER_ADMIN', 'OWNER'), async (req, res) => {
   try {
     const userToDelete = await User.findById(req.params.id);
     if (!userToDelete) return res.status(404).json({ success: false, message: 'User not found' });
     
-    // Permission checks
-    const isOwner = req.user.role === 'owner';
-    const isSelf = req.user._id.toString() === req.params.id;
-    
-    if (!isOwner && !isSelf) {
-       return res.status(403).json({ success: false, message: 'Not authorized to delete this account' });
+    if (req.user.role === 'OWNER') {
+      if (userToDelete.companyId.toString() !== req.user.companyId.toString()) {
+        return res.status(403).json({ success: false, message: 'User belongs to another company' });
+      }
+      if (userToDelete.role !== 'DESIGNER') {
+        return res.status(403).json({ success: false, message: 'Owners can only delete Designers' });
+      }
     }
     
-    // Owner cannot delete another owner
-    if (isOwner && !isSelf && userToDelete.role === 'owner') {
-       return res.status(403).json({ success: false, message: 'Admins cannot delete other Admins' });
+    userToDelete.isDeleted = true;
+    await userToDelete.save();
+    
+    return res.json({ success: true, message: 'User deleted successfully' });
+  } catch (e) {
+    return res.status(400).json({ success: false, message: e.message });
+  }
+});
+
+// UPDATE user
+router.put('/:id', protect, async (req, res) => {
+  try {
+    const userToUpdate = await User.findById(req.params.id);
+    if (!userToUpdate) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    // Check access
+    if (req.user.role !== 'SUPER_ADMIN' && req.user._id.toString() !== userToUpdate._id.toString()) {
+       if (req.user.role === 'OWNER') {
+          if (userToUpdate.companyId?.toString() !== req.user.companyId?.toString()) {
+             return res.status(403).json({ success: false, message: 'Access denied' });
+          }
+       } else {
+          return res.status(403).json({ success: false, message: 'Access denied' });
+       }
     }
 
-    await User.findByIdAndDelete(req.params.id);
-    return res.json({ success: true, message: 'User deleted' });
+    const { name, phone, password, profilePhoto, settings } = req.body;
+    
+    if (name !== undefined) userToUpdate.name = name;
+    if (phone !== undefined) userToUpdate.phone = phone;
+    if (profilePhoto !== undefined) userToUpdate.profilePhoto = profilePhoto;
+    if (settings !== undefined) userToUpdate.settings = settings;
+    
+    if (password) {
+      userToUpdate.password = password; // Will be hashed by pre-save hooks
+    }
+
+    await userToUpdate.save();
+    
+    const result = userToUpdate.toObject();
+    delete result.password;
+
+    return res.json({ success: true, data: result });
   } catch (e) {
     return res.status(400).json({ success: false, message: e.message });
   }

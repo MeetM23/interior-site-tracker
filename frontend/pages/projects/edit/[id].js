@@ -54,7 +54,7 @@ export default function EditProjectPage() {
     budget: 0, spentBudget: 0,
     startDate: '', endDate: '',
     milestones: [],
-    projectManager: '', assignedDesigner: '', siteSupervisor: '', workersVendors: [],
+    assignedDesigner: '', siteSupervisor: '', workersVendors: [],
     status: 'not_started', autoProgress: true, completionPercent: 0,
     tasks: []
   });
@@ -84,7 +84,7 @@ export default function EditProjectPage() {
             ...p,
             startDate: p.startDate ? p.startDate.split('T')[0] : '',
             endDate: p.endDate ? p.endDate.split('T')[0] : '',
-            projectManager: p.projectManager?._id || p.projectManager || '',
+
             assignedDesigner: p.assignedDesigner?._id || p.assignedDesigner || '',
             siteSupervisor: p.siteSupervisor?._id || p.siteSupervisor || '',
             workersVendors: (p.workersVendors || []).map(w => w._id || w),
@@ -304,32 +304,26 @@ export default function EditProjectPage() {
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>6. Team Assignment</h2>
           <div style={styles.grid2}>
-            <div>
-              <label style={styles.label}>Project Manager</label>
-              <select name="projectManager" value={form.projectManager || ''} onChange={handleChange} style={styles.select}>
-                <option value="">-- Unassigned --</option>
-                {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
-              </select>
-            </div>
+
             <div>
               <label style={styles.label}>Lead Designer</label>
               <select name="assignedDesigner" value={form.assignedDesigner || ''} onChange={handleChange} style={styles.select}>
                 <option value="">-- Unassigned --</option>
-                {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+                {users.filter(u => u.role === 'designer').map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
               </select>
             </div>
             <div>
               <label style={styles.label}>Site Supervisor</label>
               <select name="siteSupervisor" value={form.siteSupervisor || ''} onChange={handleChange} style={styles.select}>
                 <option value="">-- Unassigned --</option>
-                {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+                {users.filter(u => u.role === 'supervisor').map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
               </select>
             </div>
             <div>
               <label style={styles.label}>Workers & Vendors (Multi-select)</label>
               <select multiple value={form.workersVendors || []} onChange={handleWorkersChange} style={{...styles.select, height: '100px', padding: '0.5rem'}}>
                 <option value="" disabled>Hold Ctrl/Cmd to select multiple</option>
-                {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+                {users.filter(u => u.role === 'worker').map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
               </select>
             </div>
           </div>
@@ -374,7 +368,7 @@ export default function EditProjectPage() {
                     <label style={{...styles.label, fontSize: '0.8rem'}}>Assigned To</label>
                     <select value={task.assignedTo || ''} onChange={(e) => handleTaskChange(i, 'assignedTo', e.target.value)} style={styles.select}>
                       <option value="">--</option>
-                      {users.map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
+                      {users.filter(u => u.role !== 'owner').map(u => <option key={u._id} value={u._id}>{u.name}</option>)}
                     </select>
                   </div>
                   <div style={{ flex: '1 1 150px' }}>

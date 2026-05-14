@@ -16,16 +16,18 @@ export default function Layout({ children }) {
 
   const isActive = (path) => router.pathname === path;
 
-  const navItems = [
-    { label: 'Dashboard', path: '/dashboard' },
-    { label: 'Projects', path: '/projects' },
-    { label: 'Calendar', path: '/calendar' },
-  ];
-
-  if (user?.role === 'owner') {
+  const navItems = [];
+  
+  if (user?.role === 'SUPER_ADMIN') {
+    navItems.push({ label: 'Dashboard', path: '/admin' });
+    navItems.push({ label: 'Companies', path: '/admin/companies' });
+    navItems.push({ label: 'Owners', path: '/admin/owners' });
+    navItems.push({ label: 'System Identity', path: '/admin/profile' });
+  } else {
+    navItems.push({ label: 'Dashboard', path: '/dashboard' });
+    navItems.push({ label: 'Projects', path: '/projects' });
+    navItems.push({ label: 'Calendar', path: '/calendar' });
     navItems.push({ label: 'Team', path: '/team' });
-  }
-  if (user) {
     navItems.push({ label: 'Profile', path: '/profile' });
   }
 
@@ -100,6 +102,7 @@ export default function Layout({ children }) {
               </div>
             )}
           </div>
+
 
           {/* Navigation */}
           <nav style={{ marginBottom: '3rem' }}>

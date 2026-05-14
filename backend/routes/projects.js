@@ -1,7 +1,9 @@
 const router = require('express').Router();
-const mongoose = require('mongoose');
 const Project = require('../models/Project');
-const { protect, ownerOnly } = require('../middleware/auth');
+const Task = require('../models/Task');
+const Payment = require('../models/Payment');
+const ActivityLog = require('../models/ActivityLog');
+const { protect, requireCompany } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 
@@ -11,147 +13,113 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-const recalcProject = (project) => {
-  if (!project) return project;
-  const totalTasks = project.tasks ? project.tasks.length : 0;
-  if (totalTasks > 0) {
-    const completedTasks = project.tasks.filter(t => t.status === 'completed').length;
-    project.completionPercent = Math.round((completedTasks / totalTasks) * 100);
-  } else {
-    project.completionPercent = project.completionPercent || 0;
-  }
+router.use(protect, requireCompany);
 
-  if (project.autoProgress && project.completionPercent === 100 && project.status !== 'cancelled') {
-    project.status = 'completed';
-  }
-
-  const now = new Date();
-  if (project.endDate && new Date(project.endDate) < now && project.status !== 'completed' && project.status !== 'cancelled') {
-    project.status = 'delayed';
-  }
-
-  if (project.milestones && Array.isArray(project.milestones)) {
-    project.milestones = project.milestones.map(ms => {
-      if (ms.completedDate) {
-        return { ...ms.toObject ? ms.toObject() : ms, status: 'completed' };
-      }
-      if (ms.targetDate) {
-        if (new Date(ms.targetDate) < now && ms.status !== 'completed') {
-          return { ...ms.toObject ? ms.toObject() : ms, status: 'delayed' };
-        }
-        return { ...ms.toObject ? ms.toObject() : ms, status: ms.status || 'pending' };
-      }
-      return ms;
+// Utility to log activity
+const logActivity = async (action, details, req) => {
+  try {
+    await ActivityLog.create({
+      companyId: req.user.companyId,
+      userId: req.user._id,
+      projectId: details.projectId || null,
+      action,
+      details
     });
+  } catch (err) {
+    console.error("Failed to log activity:", err);
   }
-
-  project.lastUpdatedAt = new Date();
-  return project;
 };
 
-// GET all projects (owner: all, designer: assigned)
-router.get('/', protect, async (req, res) => {
+// GET projects
+router.get('/', async (req, res) => {
   try {
-    const filter = req.user.role === 'designer' ? { assignedDesigner: req.user._id } : {};
+    let filter = { companyId: req.user.companyId };
+    
+    // Scoping for Designer
+    if (req.user.role === 'DESIGNER') {
+      filter.assignedDesigner = req.user._id;
+    }
+
     const projects = await Project.find(filter)
+      .populate('clientId', 'name')
       .populate('assignedDesigner', 'name email')
-      .populate('projectManager', 'name email')
-      .populate('siteSupervisor', 'name email')
-      .populate('workersVendors', 'name email')
-      .populate('tasks.assignedTo', 'name')
-      .sort('-createdAt');
+      .sort('-createdAt')
+      .lean();
+      
+    // Optionally fetch dynamic data per project (like completion percentage from tasks)
+    // Here we can keep it simple on the list view or do a lightweight lookup
+    for (let p of projects) {
+       const tasks = await Task.find({ projectId: p._id, companyId: req.user.companyId, type: 'task' }).select('status');
+       const total = tasks.length;
+       const completed = tasks.filter(t => t.status === 'completed').length;
+       p.completionPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
+    }
+      
     return res.json({ success: true, data: projects });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
   }
 });
 
-// ALERTS endpoint
-router.get('/meta/alerts', protect, async (req, res) => {
-  try {
-    const filter = req.user.role === 'designer' ? { assignedDesigner: req.user._id } : {};
-    const projects = await Project.find(filter);
-    const now = new Date();
-    const alerts = [];
-    const seen = new Set();
-
-    projects.forEach(p => {
-      const lastUpdated = new Date(p.lastUpdatedAt || p.updatedAt || p.createdAt);
-      const daysSinceUpdate = Math.floor((now - lastUpdated) / 86400000);
-      const daysToEnd = p.endDate ? Math.floor((new Date(p.endDate) - now) / 86400000) : null;
-
-      if (daysSinceUpdate > 7) {
-        const key = `${p._id}-no_update`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          alerts.push({ project: p.name, type: 'no_update', message: `No updates in ${daysSinceUpdate} days`, id: p._id });
-        }
-      }
-
-      if (daysToEnd !== null && daysToEnd <= 5 && daysToEnd >= 0 && p.status !== 'completed') {
-        const key = `${p._id}-near_deadline`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          alerts.push({ project: p.name, type: 'near_deadline', message: `Deadline in ${daysToEnd} day${daysToEnd !== 1 ? 's' : ''}`, id: p._id });
-        }
-      }
-
-      if (p.status === 'delayed') {
-        const key = `${p._id}-delayed`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          alerts.push({ project: p.name, type: 'delayed', message: 'Project is delayed', id: p._id });
-        }
-      }
-    });
-
-    return res.json({ success: true, data: alerts });
-  } catch (e) {
-    return res.status(500).json({ success: false, message: e.message });
-  }
-});
-
 // GET single project
-router.get('/:id', protect, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ success: false, message: 'Invalid project ID' });
-  }
+router.get('/:id', async (req, res) => {
   try {
-    const p = await Project.findById(req.params.id)
-      .populate('assignedDesigner', 'name email')
-      .populate('projectManager', 'name email')
-      .populate('siteSupervisor', 'name email')
-      .populate('workersVendors', 'name email')
-      .populate('tasks.assignedTo', 'name')
-      .populate('updates.createdBy', 'name')
-      .populate('gallery.uploadedBy', 'name profilePhoto');
-    if (!p) return res.status(404).json({ success: false, message: 'Project not found' });
+    let filter = { _id: req.params.id, companyId: req.user.companyId };
+    if (req.user.role === 'DESIGNER') {
+      filter.assignedDesigner = req.user._id;
+    }
+    
+    const p = await Project.findOne(filter)
+      .populate('clientId')
+      .populate('assignedDesigner', 'name email profilePhoto')
+      .populate('gallery.uploadedBy', 'name profilePhoto')
+      .lean();
+      
+    if (!p) return res.status(404).json({ success: false, message: 'Project not found or access denied' });
+    
+    // Fetch tasks and milestones dynamically
+    const allTasks = await Task.find({ projectId: p._id, companyId: req.user.companyId, type: 'task' })
+                               .populate('assignedTo', 'name email');
+    p.tasks = allTasks;
+    p.milestones = await Task.find({ projectId: p._id, companyId: req.user.companyId, type: 'milestone' })
+                             .sort('deadline');
+
+    // Auto-calculate completion percent based on tasks
+    const totalTasks = allTasks.length;
+    const completedTasks = allTasks.filter(t => t.status === 'completed').length;
+    p.completionPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    // Budget summary: pull payments and compute remaining
+    const payments = await Payment.find({ projectId: p._id, companyId: req.user.companyId })
+                                  .populate('recordedBy', 'name')
+                                  .sort('-paymentDate')
+                                  .lean();
+    const totalSpent = payments.reduce((sum, pay) => sum + pay.amount, 0);
+    p.budgetSummary = {
+      budget: p.budget || 0,
+      totalSpent,
+      remaining: Math.max(0, (p.budget || 0) - totalSpent)
+    };
+    p.expenses = payments;
+
     return res.json({ success: true, data: p });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
   }
 });
 
-// CREATE project (owner only)
-router.post('/', protect, ownerOnly, upload.array('documents', 10), async (req, res) => {
+// CREATE project
+router.post('/', upload.array('documents', 10), async (req, res) => {
   try {
     let bodyData = req.body;
     if (req.body.data) {
       bodyData = JSON.parse(req.body.data);
     }
-
-    const DEFAULT_MILESTONES = [
-      'Design Finalization','Material Procurement',
-      'Execution Start','Mid Completion','Final Handover'
-    ].map(name => ({ name, status: 'pending' }));
-
+    
     const payload = {
       ...bodyData,
-      milestones: bodyData.milestones || DEFAULT_MILESTONES,
-      completionPercent: 0,
-      status: bodyData.status || 'not_started',
-      createdBy: req.user._id,
-      lastUpdatedAt: new Date()
+      companyId: req.user.companyId,
+      createdBy: req.user._id
     };
 
     if (req.files && req.files.length > 0) {
@@ -163,41 +131,40 @@ router.post('/', protect, ownerOnly, upload.array('documents', 10), async (req, 
     }
 
     const p = await Project.create(payload);
-    const project = await Project.findById(p._id)
-      .populate('assignedDesigner', 'name email')
-      .populate('projectManager', 'name email')
-      .populate('siteSupervisor', 'name email')
-      .populate('workersVendors', 'name email')
-      .populate('tasks.assignedTo', 'name');
+    
+    // Auto-generate some default milestones if none provided
+    if (bodyData.generateDefaultMilestones) {
+      const defaultMilestones = ['Design Finalization', 'Execution Start', 'Mid Completion', 'Final Handover'];
+      for (const m of defaultMilestones) {
+         await Task.create({
+           companyId: req.user.companyId,
+           projectId: p._id,
+           name: m,
+           type: 'milestone'
+         });
+      }
+    }
 
-    return res.status(201).json({ success: true, message: 'Project created', data: project });
+    await logActivity('PROJECT_CREATED', { projectId: p._id, projectName: p.name }, req);
+
+    return res.status(201).json({ success: true, message: 'Project created', data: p });
   } catch (e) {
     return res.status(400).json({ success: false, message: e.message });
   }
 });
 
 // UPDATE project
-router.put('/:id', protect, async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    let project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
-
-    // owner or assigned designer only
-    if (req.user.role === 'designer' && project.assignedDesigner?.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+    let filter = { _id: req.params.id, companyId: req.user.companyId };
+    if (req.user.role === 'DESIGNER') {
+      filter.assignedDesigner = req.user._id;
     }
-
-    Object.assign(project, req.body);
-    project = recalcProject(project);
-    await project.save();
-
-    project = await Project.findById(req.params.id)
-      .populate('assignedDesigner', 'name email')
-      .populate('projectManager', 'name email')
-      .populate('siteSupervisor', 'name email')
-      .populate('workersVendors', 'name email')
-      .populate('tasks.assignedTo', 'name')
-      .populate('updates.createdBy', 'name');
+    
+    const project = await Project.findOneAndUpdate(filter, req.body, { new: true });
+    if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
+    
+    await logActivity('PROJECT_UPDATED', { projectId: project._id, modifications: Object.keys(req.body) }, req);
 
     return res.json({ success: true, data: project });
   } catch (e) {
@@ -205,128 +172,40 @@ router.put('/:id', protect, async (req, res) => {
   }
 });
 
-// CREATE task
-router.post('/:id/tasks', protect, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ success: false, message: 'Invalid project ID' });
-  }
-  if (!req.body.name) {
-    return res.status(400).json({ success: false, message: 'Task name required' });
-  }
+// DELETE project
+router.delete('/:id', async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
-
-    if (req.user.role === 'designer' && project.assignedDesigner?.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+    // Only owners can delete projects natively, or maybe designers too based on policy, assuming owner.
+    if (req.user.role !== 'OWNER') {
+      return res.status(403).json({ success: false, message: 'Only Owners can delete projects' });
     }
-
-    project.tasks.push({
-      name: req.body.name,
-      assignedTo: req.body.assignedTo,
-      deadline: req.body.deadline,
-      status: req.body.status || 'pending'
-    });
-
-    recalcProject(project);
-    await project.save();
-
-    const p = await Project.findById(req.params.id)
-      .populate('assignedDesigner', 'name email')
-      .populate('tasks.assignedTo', 'name')
-      .populate('updates.createdBy', 'name');
-
-    return res.status(201).json({ success: true, data: p });
-  } catch (e) {
-    return res.status(400).json({ success: false, message: e.message });
-  }
-});
-
-// UPDATE task
-router.put('/:id/tasks/:taskId', protect, async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id) || !mongoose.Types.ObjectId.isValid(req.params.taskId)) {
-    return res.status(400).json({ success: false, message: 'Invalid ID' });
-  }
-  try {
-    const project = await Project.findById(req.params.id);
+    
+    let filter = { _id: req.params.id, companyId: req.user.companyId };
+    const project = await Project.findOne(filter);
+    
     if (!project) return res.status(404).json({ success: false, message: 'Project not found' });
-
-    if (req.user.role === 'designer' && project.assignedDesigner?.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
-    }
-
-    const task = project.tasks.id(req.params.taskId);
-    if (!task) return res.status(404).json({ success: false, message: 'Task not found' });
-
-    ['name', 'assignedTo', 'deadline', 'status'].forEach(field => {
-      if (req.body[field] !== undefined) task[field] = req.body[field];
-    });
-
-    recalcProject(project);
+    
+    project.isDeleted = true;
     await project.save();
-
-    const p = await Project.findById(req.params.id)
-      .populate('assignedDesigner', 'name email')
-      .populate('tasks.assignedTo', 'name')
-      .populate('updates.createdBy', 'name');
-
-    return res.json({ success: true, data: p });
-  } catch (e) {
-    return res.status(400).json({ success: false, message: e.message });
-  }
-});
-
-// DELETE project (owner only)
-router.delete('/:id', protect, ownerOnly, async (req, res) => {
-  try {
-    await Project.findByIdAndDelete(req.params.id);
+    
+    await logActivity('PROJECT_DELETED', { projectId: project._id, projectName: project.name }, req);
+    
     return res.json({ success: true, message: 'Deleted' });
   } catch (e) {
     return res.status(400).json({ success: false, message: e.message });
   }
 });
 
-// ADD update with file upload
-router.post('/:id/updates', protect, upload.array('files', 10), async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ success: false, message: 'Invalid project ID' });
-  }
-  try {
-    const p = await Project.findById(req.params.id);
-    if (!p) return res.status(404).json({ success: false, message: 'Project not found' });
-
-    const files = (req.files || []).map(f => f.filename);
-    const images = files.filter(f => /\.(jpg|jpeg|png|gif|webp)$/i.test(f));
-    const videos = files.filter(f => /\.(mp4|mov|avi)$/i.test(f));
-
-    p.updates.push({ notes: req.body.notes, images, videos, createdBy: req.user._id });
-    p.lastUpdatedAt = new Date();
-    recalcProject(p);
-    await p.save();
-
-    const project = await Project.findById(req.params.id)
-      .populate('assignedDesigner', 'name email')
-      .populate('tasks.assignedTo', 'name')
-      .populate('updates.createdBy', 'name');
-
-    return res.json({ success: true, data: project });
-  } catch (e) {
-    return res.status(400).json({ success: false, message: e.message });
-  }
-});
-
 // ADD to site gallery
-router.post('/:id/gallery', protect, upload.array('photos', 5), async (req, res) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ success: false, message: 'Invalid project ID' });
-  }
+router.post('/:id/gallery', upload.array('photos', 5), async (req, res) => {
   try {
-    const p = await Project.findById(req.params.id);
-    if (!p) return res.status(404).json({ success: false, message: 'Project not found' });
-
-    if (req.user.role === 'designer' && p.assignedDesigner?.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+    let filter = { _id: req.params.id, companyId: req.user.companyId };
+    if (req.user.role === 'DESIGNER') {
+      filter.assignedDesigner = req.user._id;
     }
+
+    const p = await Project.findOne(filter);
+    if (!p) return res.status(404).json({ success: false, message: 'Project not found' });
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ success: false, message: 'No photos uploaded' });
@@ -341,16 +220,10 @@ router.post('/:id/gallery', protect, upload.array('photos', 5), async (req, res)
        });
     });
 
-    p.lastUpdatedAt = new Date();
     await p.save();
+    await logActivity('GALLERY_UPDATED', { projectId: p._id, photoCount: req.files.length }, req);
 
-    const project = await Project.findById(req.params.id)
-      .populate('assignedDesigner', 'name email')
-      .populate('tasks.assignedTo', 'name')
-      .populate('updates.createdBy', 'name')
-      .populate('gallery.uploadedBy', 'name profilePhoto');
-
-    return res.json({ success: true, data: project });
+    return res.json({ success: true, data: p });
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message });
   }

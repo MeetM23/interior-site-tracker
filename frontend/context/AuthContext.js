@@ -7,6 +7,8 @@ export function AuthProvider ({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const stored = localStorage.getItem('user');
@@ -15,6 +17,8 @@ export function AuthProvider ({ children }) {
     }
     setLoading(false);
   }, []);
+
+
 
   const login = async (email, password) => {
     const resp = await api.post('/auth/login', { email, password });
@@ -32,18 +36,8 @@ export function AuthProvider ({ children }) {
     setUser(null);
   };
 
-  const register = async (name, email, password, role = 'designer') => {
-    const resp = await api.post('/auth/register', { name, email, password, role });
-    const { token, user: u } = resp.data.data || resp.data;
-    if (!token || !u) throw new Error(resp.data.message || 'Registration failed');
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(u));
-    setUser(u);
-    return u;
-  };
-
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
